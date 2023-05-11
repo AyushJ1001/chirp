@@ -3,13 +3,13 @@ import { z } from "zod";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { clerkClient } from "@clerk/nextjs/api";
-import type { User } from "@clerk/nextjs/api";
 import { TRPCError } from "@trpc/server";
 
 import { Ratelimit } from "@upstash/ratelimit"; // for deno: see above
 import { Redis } from "@upstash/redis";
 import { filterUseForClient } from "~/server/helpers/filterUserForClient";
 import type { Post } from "@prisma/client";
+import { validationSchema } from "~/pages";
 
 const addUserDataToPosts = async (posts: Post[]) => {
   const users = (
@@ -97,11 +97,7 @@ export const postsRouter = createTRPCRouter({
     ),
 
   create: privateProcedure
-    .input(
-      z.object({
-        content: z.string().emoji("Only emojis are allowed!").min(1).max(200),
-      })
-    )
+    .input(validationSchema)
     .mutation(async ({ ctx, input }) => {
       const authorId = ctx.userId;
 
@@ -113,6 +109,15 @@ export const postsRouter = createTRPCRouter({
         data: {
           authorId,
           content: input.content,
+        },
+      });
+    }),
+  deletePost: privateProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.prisma.post.delete({
+        where: {
+          id: input.id,
         },
       });
     }),

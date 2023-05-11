@@ -1,27 +1,42 @@
 import { type NextPage } from "next";
 import { toast } from "react-hot-toast";
 import { api } from "~/utils/api";
-import { SignInButton, useUser } from "@clerk/nextjs";
+import { SignInButton, SignOutButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import { LoadingPage, LoadingSpinner } from "~/components/loading";
-import { useState } from "react";
 import { PageLayout } from "~/components/layout";
 import { PostView } from "~/components/postview";
+import { z } from "zod";
+import { useForm, UseFormProps } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+// validation schema is used by server
+export const validationSchema = z.object({
+  content: z.string().emoji("Only emojis are allowed!").min(1).max(200),
+});
+
+function useZodForm<TSchema extends z.ZodType>(
+  props: Omit<UseFormProps<TSchema["_input"]>, "resolver"> & {
+    schema: TSchema;
+  }
+) {
+  return useForm<TSchema["_input"]>({
+    ...props,
+    resolver: zodResolver(props.schema, undefined),
+  });
+}
 
 const CreatePostWizard = () => {
-  const [input, setInput] = useState("");
   const { user } = useUser();
 
   const ctx = api.useContext();
 
   const { mutate, isLoading: isPosting } = api.posts.create.useMutation({
     onSuccess: () => {
-      setInput("");
       void ctx.posts.getAll.invalidate();
     },
     onError: (e) => {
       const errorMessage = e.data?.zodError?.fieldErrors.content;
-      setInput("");
       if (errorMessage && errorMessage[0]) {
         toast.error(errorMessage[0]);
       } else {
@@ -30,7 +45,16 @@ const CreatePostWizard = () => {
     },
   });
 
+  const methods = useZodForm({
+    schema: validationSchema,
+    defaultValues: {
+      content: "",
+    },
+  });
+
   if (!user) return null;
+
+  const input = methods.watch("content");
 
   return (
     <div className="flex w-full gap-3">
@@ -41,31 +65,28 @@ const CreatePostWizard = () => {
         width={56}
         height={56}
       />
-      <input
-        type="text"
-        placeholder="Type some emojis!"
-        className=" grow bg-transparent outline-none"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        disabled={isPosting}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            if (input !== "") {
-              mutate({ content: input });
-            }
-          }
-        }}
-      />
-      {input !== "" && !isPosting && (
-        <button onClick={() => mutate({ content: input })}>Post</button>
-      )}
+      <form
+        onSubmit={methods.handleSubmit(async (values) => {
+          await mutate(values);
+          methods.reset();
+        })}
+        className="flex flex-1"
+      >
+        <input
+          type="text"
+          placeholder="Type some emojis!"
+          className=" grow bg-transparent outline-none"
+          {...methods.register("content")}
+          disabled={isPosting}
+        />
+        {input !== "" && !isPosting && <button type="submit">Post</button>}
 
-      {isPosting && (
-        <div className="flex items-center justify-center">
-          <LoadingSpinner size={20} />
-        </div>
-      )}
+        {isPosting && (
+          <div className="flex items-center justify-center">
+            <LoadingSpinner size={20} />
+          </div>
+        )}
+      </form>
     </div>
   );
 };
@@ -106,6 +127,11 @@ const Home: NextPage = () => {
         {!!isSignedIn && <CreatePostWizard />}
       </div>
       <Feed />
+      {!!isSignedIn && (
+        <div className="flex justify-center border-t border-slate-400 p-4">
+          <SignOutButton />
+        </div>
+      )}
     </PageLayout>
   );
 };
