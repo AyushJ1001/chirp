@@ -20,16 +20,19 @@ const addUserDataToPosts = async (posts: Post[]) => {
   ).map(filterUseForClient);
 
   return posts.map((post) => {
-    const author = users.find((user) => {
+    let author = users.find((user) => {
       console.log(`user: ${user.username ?? "no username"} with id ${user.id}`);
       return user.id === post.authorId;
     });
 
-    if (!author)
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Author not found",
-      });
+    if (!author) {
+      author = {
+        id: "Unknown",
+        username: "Unknown",
+        profileImageUrl:
+          "https://avatars.githubusercontent.com/u/10000000?s=60&v=4",
+      };
+    }
 
     return {
       post,
