@@ -19,8 +19,6 @@ const addUserDataToPosts = async (posts: Post[]) => {
     })
   ).map(filterUseForClient);
 
-  console.log(users);
-
   return posts.map((post) => {
     const author = users.find((user) => {
       console.log(`user: ${user.username ?? "no username"} with id ${user.id}`);
